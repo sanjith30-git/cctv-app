@@ -1,0 +1,99 @@
+[
+  {
+    "id": 1,
+    "name": "Main Entrance Camera",
+    "location": "Main Entrance",
+    "owner_id": 1,
+    "stream_url": "https://placeholder.com/stream1",
+    "status": "active"
+  },
+  {
+    "id": 2,
+    "name": "Parking Area Camera",
+    "location": "Parking Area",
+    "owner_id": 1,
+    "stream_url": "https://placeholder.com/stream2",
+    "status": "active"
+  },
+  {
+    "id": 3,
+    "name": "Back Gate Camera",
+    "location": "Back Gate",
+    "owner_id": 1,
+    "stream_url": "https://placeholder.com/stream3",
+    "status": "active"
+  },
+  {
+    "id": 4,
+    "name": "Reception Camera",
+    "location": "Reception",
+    "owner_id": 1,
+    "stream_url": "https://placeholder.com/stream4",
+    "status": "active"
+  },
+  {
+    "id": 5,
+    "name": "Office Camera 1",
+    "location": "Office Floor 1",
+    "owner_id": 2,
+    "stream_url": "https://placeholder.com/stream5",
+    "status": "active"
+  },
+  {
+    "id": 6,
+    "name": "Office Camera 2",
+    "location": "Office Floor 2",
+    "owner_id": 2,
+    "stream_url": "https://placeholder.com/stream6",
+    "status": "active"
+  },
+  {
+    "id": 7,
+    "name": "Warehouse Camera",
+    "location": "Warehouse",
+    "owner_id": 2,
+    "stream_url": "https://placeholder.com/stream7",
+    "status": "active"
+  },
+  {
+    "id": 8,
+    "name": "Loading Dock Camera",
+    "location": "Loading Dock",
+    "owner_id": 2,
+    "stream_url": "https://placeholder.com/stream8",
+    "status": "active"
+  },
+  {
+    "id": 9,
+    "name": "Security Office Camera",
+    "location": "Security Office",
+    "owner_id": 1,
+    "stream_url": "https://placeholder.com/stream9",
+    "status": "active"
+  },
+  {
+    "id": 10,
+    "name": "Hallway Camera",
+    "location": "Main Hallway",
+    "owner_id": 1,
+    "stream_url": "https://placeholder.com/stream10",
+    "status": "active"
+  },
+  {
+    "id": 11,
+    "name": "Server Room Camera",
+    "location": "Server Room",
+    "owner_id": 2,
+    "stream_url": "https://placeholder.com/stream11",
+    "status": "active"
+  },
+  {
+    "id": 12,
+    "name": "Lobby Camera",
+    "location": "Main Lobby",
+    "owner_id": 2,
+    "stream_url": "https://placeholder.com/stream12",
+    "status": "active"
+  }
+]
+

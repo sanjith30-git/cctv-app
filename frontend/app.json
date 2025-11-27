@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "CCTV System",
+    "slug": "cctv-system",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#4F46E5"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.cctv.system"
+    },
+    "android": {
+      "package": "com.cctv.system"
+    }
+  }
+}
+
