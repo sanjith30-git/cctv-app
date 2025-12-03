@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   Animated,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import CameraCard from '../components/CameraCard';
@@ -22,6 +23,7 @@ const ControlDashboard = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('cameras');
   const [drawerVisible, setDrawerVisible] = useState(false);
+  const insets = useSafeAreaInsets();
   
   // Header animations
   const headerOpacity = useRef(new Animated.Value(0)).current;
@@ -104,6 +106,7 @@ const ControlDashboard = ({ navigation }) => {
           {
             opacity: headerOpacity,
             transform: [{ translateY: headerTranslateY }],
+            paddingTop: insets.top + 20,
           },
         ]}
       >
@@ -180,6 +183,10 @@ const ControlDashboard = ({ navigation }) => {
                     index={index}
                     onStatusUpdate={(cameraId, newStatus) => {
                       // Refresh camera list when status changes
+                      fetchData();
+                    }}
+                    onNameUpdate={() => {
+                      // Refresh camera list when name changes
                       fetchData();
                     }}
                   />

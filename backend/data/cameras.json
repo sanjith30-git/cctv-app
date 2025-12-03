@@ -1,7 +1,7 @@
 [
   {
     "id": 1,
-    "name": "Raspberry Pi 5 Camera",
+    "name": "Ai camera",
     "location": "Main Area",
     "owner_id": 1,
     "stream_url": "http://192.168.0.112:5000/video_feed",
@@ -9,4 +9,3 @@
     "device": "Raspberry Pi 5"
   }
 ]
-

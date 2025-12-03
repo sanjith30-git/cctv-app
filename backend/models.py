@@ -34,3 +34,14 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
+class UpdateUsernameRequest(BaseModel):
+    new_username: str
+    password: str  # Current password for verification
+
+class UpdatePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+class UpdateCameraNameRequest(BaseModel):
+    name: str
+

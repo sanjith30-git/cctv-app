@@ -29,7 +29,6 @@ const Login = ({ navigation }) => {
   const formOpacity = useRef(new Animated.Value(0)).current;
   const formTranslateY = useRef(new Animated.Value(20)).current;
   const buttonScale = useRef(new Animated.Value(0.95)).current;
-  const credentialsOpacity = useRef(new Animated.Value(0)).current;
 
   // Clear form when user logs out (user becomes null)
   React.useEffect(() => {
@@ -81,13 +80,6 @@ const Login = ({ navigation }) => {
         toValue: 0,
         duration: 700,
         delay: 400,
-        useNativeDriver: true,
-      }),
-      // Credentials box animation
-      Animated.timing(credentialsOpacity, {
-        toValue: 1,
-        duration: 600,
-        delay: 800,
         useNativeDriver: true,
       }),
     ]).start();
@@ -236,31 +228,18 @@ const Login = ({ navigation }) => {
               transform: [{ scale: buttonScale }],
             }}
           >
-            <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
               onPress={handleButtonPress}
-              disabled={loading || !username || !password}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>Login</Text>
-              )}
-            </TouchableOpacity>
+            disabled={loading || !username || !password}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Login</Text>
+            )}
+          </TouchableOpacity>
           </Animated.View>
-        </Animated.View>
-
-        <Animated.View 
-          style={[
-            styles.credentialsBox,
-            {
-              opacity: credentialsOpacity,
-            },
-          ]}
-        >
-          <Text style={styles.credentialsTitle}>Test Credentials:</Text>
-          <Text style={styles.credentialsText}>Owner: owner1 / password123</Text>
-          <Text style={styles.credentialsText}>Control Room: admin / password123</Text>
         </Animated.View>
       </Animated.View>
     </ScrollView>
@@ -369,23 +348,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
-  },
-  credentialsBox: {
-    marginTop: 24,
-    padding: 16,
-    backgroundColor: '#E0F2FE',
-    borderRadius: 8,
-  },
-  credentialsTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
-  },
-  credentialsText: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginBottom: 4,
   },
 });
 

@@ -1,8 +1,8 @@
 [
   {
     "id": 1,
-    "username": "owner1",
-    "password": "$2b$12$rvWkDNCt.6AI1Cji37o/KOIZUq0L7aR9/zaOyyDBLy3CFmEXs0Byu",
+    "username": "owner",
+    "password": "$2b$12$Dj9scFT3ZehaHWps/ApYu.0BoWiy9yhD0ugpT1MWqo1F3hpLvdO1C",
     "role": "owner"
   },
   {

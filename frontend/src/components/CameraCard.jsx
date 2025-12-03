@@ -8,24 +8,33 @@ import {
   TouchableOpacity,
   Dimensions,
   PanResponder,
-  Animated
+  Animated,
+  TextInput,
+  Alert
 } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { WebView } from 'react-native-webview';
+import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-const CameraCard = ({ camera, onStatusUpdate, index = 0 }) => {
+const CameraCard = ({ camera, onStatusUpdate, index = 0, onNameUpdate }) => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [fullscreenVisible, setFullscreenVisible] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState(camera.name);
+  const [updatingName, setUpdatingName] = useState(false);
+  const [orientation, setOrientation] = useState('portrait');
   const webViewRef = useRef(null);
   const fullscreenWebViewRef = useRef(null);
   const errorCountRef = useRef(0);
   const statusUpdateAttemptedRef = useRef(false);
+  const isOwner = user?.role === 'owner';
   
   // Zoom and pan for fullscreen
   const scale = useRef(new Animated.Value(1)).current;
@@ -49,7 +58,8 @@ const CameraCard = ({ camera, onStatusUpdate, index = 0 }) => {
   
   // For non-MJPEG video streams, use expo-video player
   // Only create player if not MJPEG and stream URL exists
-  const videoUrl = !isMJPEG && camera.stream_url ? camera.stream_url : '';
+  // Pass null instead of empty string to avoid loading invalid URLs
+  const videoUrl = !isMJPEG && camera.stream_url ? camera.stream_url : null;
   const player = useVideoPlayer(videoUrl, (player) => {
     if (player && videoUrl) {
       player.loop = true;
@@ -64,10 +74,35 @@ const CameraCard = ({ camera, onStatusUpdate, index = 0 }) => {
     setImageLoaded(false);
     errorCountRef.current = 0;
     statusUpdateAttemptedRef.current = false;
-  }, [camera.stream_url, camera.status, refreshKey]);
+    setEditedName(camera.name);
+    setIsEditingName(false);
+  }, [camera.stream_url, camera.status, camera.name, refreshKey]);
+
+  // Monitor orientation changes
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      const isLandscape = window.width > window.height;
+      setOrientation(isLandscape ? 'landscape' : 'portrait');
+    });
+    
+    // Set initial orientation
+    const initialIsLandscape = SCREEN_WIDTH > SCREEN_HEIGHT;
+    setOrientation(initialIsLandscape ? 'landscape' : 'portrait');
+    
+    return () => subscription?.remove();
+  }, []);
 
   // Entrance animations
   useEffect(() => {
+    // Reset animation values before starting
+    cardOpacity.setValue(0);
+    cardTranslateY.setValue(20);
+    titleOpacity.setValue(0);
+    titleTranslateX.setValue(-10);
+    locationOpacity.setValue(0);
+    statusBadgeScale.setValue(0);
+    actionButtonsOpacity.setValue(0);
+    
     // Staggered entrance animation
     Animated.parallel([
       Animated.timing(cardOpacity, {
@@ -115,7 +150,7 @@ const CameraCard = ({ camera, onStatusUpdate, index = 0 }) => {
         useNativeDriver: true,
       }),
     ]).start();
-  }, []);
+  }, [index]);
 
   // Reset zoom/pan when closing fullscreen
   useEffect(() => {
@@ -240,6 +275,47 @@ const CameraCard = ({ camera, onStatusUpdate, index = 0 }) => {
 
   const handleCloseFullscreen = () => {
     setFullscreenVisible(false);
+  };
+
+  const handleEditName = () => {
+    setIsEditingName(true);
+    setEditedName(camera.name);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingName(false);
+    setEditedName(camera.name);
+  };
+
+  const handleSaveName = async () => {
+    if (!editedName.trim()) {
+      Alert.alert('Error', 'Camera name cannot be empty');
+      return;
+    }
+
+    if (editedName.trim() === camera.name) {
+      setIsEditingName(false);
+      return;
+    }
+
+    setUpdatingName(true);
+    try {
+      await api.patch(`/cameras/${camera.id}/name`, {
+        name: editedName.trim(),
+      });
+      
+      setIsEditingName(false);
+      if (onNameUpdate) {
+        onNameUpdate();
+      }
+    } catch (error) {
+      console.error('Error updating camera name:', error);
+      const errorMessage = error.response?.data?.detail || 'Failed to update camera name';
+      Alert.alert('Error', errorMessage);
+      setEditedName(camera.name);
+    } finally {
+      setUpdatingName(false);
+    }
   };
 
   const handleLoad = () => {
@@ -472,7 +548,7 @@ html, body { width: 100%; height: 100%; background: #000; overflow: hidden; posi
                   androidHardwareAccelerationDisabled={false}
                 />
               </View>
-            ) : (
+            ) : videoUrl && player ? (
               // Video stream - use expo-video VideoView component
               <VideoView
                 player={player}
@@ -483,7 +559,7 @@ html, body { width: 100%; height: 100%; background: #000; overflow: hidden; posi
                 onLoadStart={handleLoad}
                 onError={handleError}
               />
-            )}
+            ) : null}
             
             {loading && !error && (
               <View style={styles.loadingOverlay} pointerEvents="none">
@@ -566,11 +642,56 @@ html, body { width: 100%; height: 100%; background: #000; overflow: hidden; posi
       <View style={styles.info}>
         <Animated.View
           style={{
-            opacity: titleOpacity,
+            opacity: 1,
             transform: [{ translateX: titleTranslateX }],
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
           }}
         >
-          <Text style={styles.cameraName}>{camera.name}</Text>
+          {isEditingName ? (
+            <View style={styles.nameEditContainer}>
+              <TextInput
+                style={styles.nameInput}
+                value={editedName}
+                onChangeText={setEditedName}
+                placeholder="Camera name"
+                autoFocus
+                editable={!updatingName}
+              />
+              <TouchableOpacity
+                style={styles.saveButton}
+                onPress={handleSaveName}
+                disabled={updatingName}
+              >
+                {updatingName ? (
+                  <ActivityIndicator size="small" color="#06B6D4" />
+                ) : (
+                  <Text style={styles.saveButtonText}>✓</Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={handleCancelEdit}
+                disabled={updatingName}
+              >
+                <Text style={styles.cancelButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <Text style={styles.cameraName}>{camera.name}</Text>
+              {isOwner && (
+                <TouchableOpacity
+                  style={styles.editButton}
+                  onPress={handleEditName}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.editButtonText}>✏️</Text>
+                </TouchableOpacity>
+              )}
+            </>
+          )}
         </Animated.View>
         <Animated.View
           style={{
@@ -587,27 +708,55 @@ html, body { width: 100%; height: 100%; background: #000; overflow: hidden; posi
         transparent={false}
         animationType="fade"
         onRequestClose={handleCloseFullscreen}
+        supportedOrientations={['portrait', 'landscape']}
       >
-        <View style={styles.fullscreenContainer}>
-          <View style={styles.fullscreenHeader}>
-            <Text style={styles.fullscreenTitle}>{camera.name}</Text>
-            <View style={styles.fullscreenButtons}>
-              <TouchableOpacity 
-                style={styles.fullscreenButton}
-                onPress={handleRefresh}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.fullscreenButtonText}>🔄 Refresh</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.fullscreenButton}
-                onPress={handleCloseFullscreen}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.fullscreenButtonText}>✕ Close</Text>
-              </TouchableOpacity>
+        <View style={[
+          styles.fullscreenContainer,
+          orientation === 'landscape' && styles.fullscreenContainerLandscape
+        ]}>
+          {orientation === 'portrait' && (
+            <View style={styles.fullscreenHeader}>
+              <Text style={styles.fullscreenTitle}>{camera.name}</Text>
+              <View style={styles.fullscreenButtons}>
+                <TouchableOpacity 
+                  style={styles.fullscreenButton}
+                  onPress={handleRefresh}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.fullscreenButtonText}>🔄 Refresh</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.fullscreenButton}
+                  onPress={handleCloseFullscreen}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.fullscreenButtonText}>✕ Close</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          )}
+          
+          {orientation === 'landscape' && (
+            <View style={styles.fullscreenHeaderLandscape}>
+              <Text style={styles.fullscreenTitleLandscape}>{camera.name}</Text>
+              <View style={styles.fullscreenButtons}>
+                <TouchableOpacity 
+                  style={styles.fullscreenButton}
+                  onPress={handleRefresh}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.fullscreenButtonText}>🔄</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.fullscreenButton}
+                  onPress={handleCloseFullscreen}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.fullscreenButtonText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
           
           <Animated.View
             style={[
@@ -668,7 +817,7 @@ html, body { width: 100%; height: 100%; background: #000; overflow: hidden; posi
                 incognito={false}
                 androidHardwareAccelerationDisabled={false}
               />
-            ) : (
+            ) : videoUrl && player ? (
               <VideoView
                 player={player}
                 style={styles.fullscreenVideo}
@@ -678,7 +827,7 @@ html, body { width: 100%; height: 100%; background: #000; overflow: hidden; posi
                 onLoadStart={handleLoad}
                 onError={handleError}
               />
-            )}
+            ) : null}
             </View>
           </Animated.View>
           
@@ -842,9 +991,68 @@ const styles = StyleSheet.create({
   },
   cameraName: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
+    fontWeight: '800',
+    color: '#000000',
     marginBottom: 4,
+    flex: 1,
+    opacity: 1,
+  },
+  editButton: {
+    padding: 4,
+    marginLeft: 8,
+    marginBottom: 4,
+  },
+  editButtonText: {
+    fontSize: 16,
+    opacity: 1,
+  },
+  nameEditContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginBottom: 4,
+  },
+  nameInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#06B6D4',
+    borderRadius: 6,
+    padding: 8,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000000',
+    backgroundColor: '#fff',
+    opacity: 1,
+  },
+  saveButton: {
+    marginLeft: 8,
+    padding: 8,
+    backgroundColor: '#10B981',
+    borderRadius: 6,
+    minWidth: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    opacity: 1,
+  },
+  cancelButton: {
+    marginLeft: 4,
+    padding: 8,
+    backgroundColor: '#EF4444',
+    borderRadius: 6,
+    minWidth: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    opacity: 1,
   },
   location: {
     fontSize: 14,
@@ -877,6 +1085,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
+  fullscreenContainerLandscape: {
+    flexDirection: 'row',
+  },
   fullscreenHeader: {
     backgroundColor: 'rgba(0, 0, 0, 0.9)',
     padding: 16,
@@ -887,8 +1098,27 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#333',
   },
+  fullscreenHeaderLandscape: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    padding: 12,
+    paddingTop: 50,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    zIndex: 100,
+  },
   fullscreenTitle: {
     fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+    flex: 1,
+  },
+  fullscreenTitleLandscape: {
+    fontSize: 16,
     fontWeight: '600',
     color: '#fff',
     flex: 1,
