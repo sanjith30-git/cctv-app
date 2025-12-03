@@ -39,16 +39,12 @@ const Login = ({ navigation }) => {
     setError('');
     setLoading(true);
 
-    console.log('Login attempt:', { username, role });
-
     const result = await login(username, password, role);
     
     if (result.success) {
-      console.log('Login successful');
       // Navigation will be handled by App.js based on user role
     } else {
       const errorMsg = result.error || 'Login failed';
-      console.error('Login failed:', errorMsg);
       setError(errorMsg);
       Alert.alert('Login Failed', errorMsg);
     }

@@ -2,19 +2,19 @@
   {
     "id": 1,
     "username": "owner1",
-    "password": "$2b$12$9quMlDE9VXDNgBKLnRHT9u81Q4wL4yVmNDxGxT.03rrato3cW7WHe",
+    "password": "$2b$12$rvWkDNCt.6AI1Cji37o/KOIZUq0L7aR9/zaOyyDBLy3CFmEXs0Byu",
     "role": "owner"
   },
   {
     "id": 2,
     "username": "owner2",
-    "password": "$2b$12$9quMlDE9VXDNgBKLnRHT9u81Q4wL4yVmNDxGxT.03rrato3cW7WHe",
+    "password": "$2b$12$rvWkDNCt.6AI1Cji37o/KOIZUq0L7aR9/zaOyyDBLy3CFmEXs0Byu",
     "role": "owner"
   },
   {
     "id": 3,
     "username": "admin",
-    "password": "$2b$12$9quMlDE9VXDNgBKLnRHT9u81Q4wL4yVmNDxGxT.03rrato3cW7WHe",
+    "password": "$2b$12$rvWkDNCt.6AI1Cji37o/KOIZUq0L7aR9/zaOyyDBLy3CFmEXs0Byu",
     "role": "control_room"
   }
 ]

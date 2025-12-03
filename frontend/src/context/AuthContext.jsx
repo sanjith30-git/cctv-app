@@ -55,16 +55,12 @@ export const AuthProvider = ({ children }) => {
       const trimmedUsername = username.trim();
       const trimmedPassword = password.trim();
       
-      console.log('Attempting login with:', { username: trimmedUsername, role: role === 'Owner' ? 'owner' : 'control_room' });
-      
       // Use normal api instance - interceptor will handle not adding token to login
       const response = await api.post('/login', {
         username: trimmedUsername,
         password: trimmedPassword,
         role: role === 'Owner' ? 'owner' : 'control_room'
       });
-      
-      console.log('Login response received:', response.status);
       
       const { access_token } = response.data;
       if (!access_token) {
@@ -127,7 +123,6 @@ export const AuthProvider = ({ children }) => {
       await AsyncStorage.removeItem('user');
       // Clear user state
       setUser(null);
-      console.log('Logout successful - all data cleared');
     } catch (error) {
       console.error('Logout error:', error);
       // Still clear user state even if storage fails

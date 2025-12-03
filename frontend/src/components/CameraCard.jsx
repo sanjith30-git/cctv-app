@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { WebView } from 'react-native-webview';
@@ -7,6 +7,7 @@ const CameraCard = ({ camera }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const webViewRef = useRef(null);
 
   // Detect stream type - MJPEG streams typically use /video_feed endpoint
   const isMJPEG = camera.stream_url?.includes('/video_feed') || 
@@ -27,11 +28,9 @@ const CameraCard = ({ camera }) => {
     setLoading(true);
     setError(false);
     setImageLoaded(false);
-    console.log('CameraCard: Loading stream:', camera.stream_url);
   }, [camera.stream_url, camera.status]);
 
   const handleLoad = () => {
-    console.log('CameraCard: Stream loaded successfully');
     setLoading(false);
     setError(false);
     setImageLoaded(true);
@@ -43,96 +42,118 @@ const CameraCard = ({ camera }) => {
     setError(true);
   };
 
-  // HTML for MJPEG stream - ensure image is visible
-  const mjpegHTML = `
-    <!DOCTYPE html>
-    <html style="width: 100%; height: 100%; margin: 0; padding: 0;">
-    <head>
-      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-      <style>
-        * { 
-          margin: 0; 
-          padding: 0; 
-          box-sizing: border-box;
-        }
-        html, body { 
-          width: 100vw; 
-          height: 100vh; 
-          background: #000; 
-          overflow: hidden; 
-          position: fixed;
-          margin: 0;
-          padding: 0;
-        }
-        #img { 
-          position: fixed;
-          top: 0;
-          left: 0;
-          width: 100vw !important; 
-          height: 100vh !important; 
-          object-fit: cover !important;
-          display: block !important;
-          z-index: 1;
-        }
-      </style>
-    </head>
-    <body style="width: 100vw; height: 100vh; margin: 0; padding: 0; background: #000;">
-      <img id="img" />
-      <script>
-        (function() {
-          var img = document.getElementById('img');
-          var url = '${camera.stream_url}';
-          var loaded = false;
-          var timer;
-          var errorCount = 0;
-          
-          // Set initial styles
-          img.style.width = '100vw';
-          img.style.height = '100vh';
-          img.style.objectFit = 'cover';
-          img.style.display = 'block';
-          img.style.position = 'fixed';
-          img.style.top = '0';
-          img.style.left = '0';
-          img.style.zIndex = '1';
-          
-          function update() {
-            if (!img || !url) return;
-            var separator = url.indexOf('?') >= 0 ? '&' : '?';
-            var newSrc = url + separator + '_=' + new Date().getTime();
-            img.src = newSrc;
-          }
-          
-          img.onload = function() {
-            console.log('Image loaded, dimensions:', img.width, 'x', img.height);
-            errorCount = 0;
-            if (!loaded && window.ReactNativeWebView) {
-              window.ReactNativeWebView.postMessage('loaded');
-              loaded = true;
-            }
-            clearTimeout(timer);
-            timer = setTimeout(update, 100);
-          };
-          
-          img.onerror = function(e) {
-            errorCount++;
-            console.error('Image error #' + errorCount);
-            if (window.ReactNativeWebView && !loaded) {
-              window.ReactNativeWebView.postMessage('error');
-            }
-            if (errorCount < 10) {
-              clearTimeout(timer);
-              timer = setTimeout(update, 1000);
-            }
-          };
-          
-          console.log('Starting MJPEG stream:', url);
-          update();
-        })();
-      </script>
-    </body>
-    </html>
-  `;
+  // HTML for MJPEG stream - memoized to prevent re-renders
+  const mjpegHTML = useMemo(() => {
+    const streamUrl = camera.stream_url || '';
+    const escapedUrl = streamUrl.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    return `<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; background: #000; overflow: hidden; position: fixed; }
+#img { 
+  width: 100vw !important; 
+  height: 100vh !important; 
+  object-fit: cover !important; 
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  z-index: 9999 !important;
+  background: #000 !important;
+}
+</style>
+</head>
+<body style="margin:0;padding:0;background:#000;overflow:hidden;">
+<img id="img" />
+<script>
+(function() {
+  var img = document.getElementById('img');
+  var url = '${escapedUrl}';
+  var timer = null;
+  var loaded = false;
+  var errorCount = 0;
+  
+  if (!img || !url) {
+    if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage('error:missing');
+    return;
+  }
+  
+  // Set initial styles immediately
+  img.style.cssText = 'width:100vw !important;height:100vh !important;object-fit:cover !important;display:block !important;visibility:visible !important;opacity:1 !important;position:fixed !important;top:0 !important;left:0 !important;z-index:9999 !important;background:#000 !important;';
+  
+  function updateImage() {
+    if (!img || !url) return;
+    try {
+      var sep = url.indexOf('?') >= 0 ? '&' : '?';
+      var timestamp = new Date().getTime();
+      var newUrl = url + sep + 't=' + timestamp;
+      
+      // Directly set src - don't wait
+      img.src = newUrl;
+      
+      // Force visibility
+      img.style.display = 'block';
+      img.style.visibility = 'visible';
+      img.style.opacity = '1';
+    } catch(e) {
+      console.error('Update error:', e);
+    }
+  }
+  
+  img.onload = function() {
+    errorCount = 0;
+    img.style.display = 'block';
+    img.style.visibility = 'visible';
+    img.style.opacity = '1';
+    
+    if (!loaded && window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage('loaded');
+      loaded = true;
+    }
+    
+    clearTimeout(timer);
+    timer = setTimeout(updateImage, 50);
+  };
+  
+  img.onerror = function() {
+    errorCount++;
+    img.style.display = 'block';
+    img.style.visibility = 'visible';
+    
+    if (window.ReactNativeWebView && !loaded && errorCount === 1) {
+      window.ReactNativeWebView.postMessage('error');
+    }
+    
+    if (errorCount < 20) {
+      clearTimeout(timer);
+      timer = setTimeout(updateImage, 500);
+    }
+  };
+  
+  // Continuous visibility check
+  setInterval(function() {
+    if (img) {
+      img.style.display = 'block';
+      img.style.visibility = 'visible';
+      img.style.opacity = '1';
+      if (!img.src || img.src === '' || img.src === window.location.href) {
+        updateImage();
+      }
+    }
+  }, 100);
+  
+  // Start loading
+  updateImage();
+})();
+</script>
+</body>
+</html>`;
+  }, [camera.stream_url]);
 
   return (
     <View style={styles.card}>
@@ -141,77 +162,48 @@ const CameraCard = ({ camera }) => {
           <>
             {isMJPEG ? (
               // MJPEG stream - use WebView with HTML img tag
-              <WebView
-                source={{ html: mjpegHTML }}
-                style={styles.video}
-                containerStyle={{ flex: 0 }}
-                onMessage={(event) => {
-                  const message = event.nativeEvent.data;
-                  console.log('WebView message:', message);
-                  if (message === 'loaded') {
-                    handleLoad();
-                  } else if (message === 'error') {
-                    handleError();
-                  }
-                }}
-                onLoadEnd={() => {
-                  console.log('WebView load ended');
-                }}
-                onError={(syntheticEvent) => {
-                  const { nativeEvent } = syntheticEvent;
-                  console.error('WebView error:', nativeEvent);
-                  handleError(nativeEvent);
-                }}
-                onHttpError={(syntheticEvent) => {
-                  const { nativeEvent } = syntheticEvent;
-                  console.error('WebView HTTP error:', nativeEvent.statusCode, nativeEvent.url);
-                  // Only show error for non-200 status codes
-                  if (nativeEvent.statusCode >= 400) {
+              <View style={styles.video}>
+                <WebView
+                  ref={webViewRef}
+                  source={{ html: mjpegHTML }}
+                  style={StyleSheet.absoluteFill}
+                  onMessage={(event) => {
+                    const message = event.nativeEvent.data;
+                    if (message === 'loaded') {
+                      handleLoad();
+                    } else if (message.startsWith('error')) {
+                      handleError();
+                    }
+                  }}
+                  onError={(syntheticEvent) => {
+                    const { nativeEvent } = syntheticEvent;
+                    console.error('WebView error:', nativeEvent);
                     handleError(nativeEvent);
-                  }
-                }}
-                javaScriptEnabled={true}
-                domStorageEnabled={false}
-                scalesPageToFit={true}
-                scrollEnabled={false}
-                allowsInlineMediaPlayback={true}
-                mediaPlaybackRequiresUserAction={false}
-                mixedContentMode="always"
-                originWhitelist={['*']}
-                startInLoadingState={true}
-                showsHorizontalScrollIndicator={false}
-                showsVerticalScrollIndicator={false}
-                bounces={false}
-                allowsBackForwardNavigationGestures={false}
-                cacheEnabled={false}
-                incognito={true}
-                injectedJavaScript={`
-                  (function() {
-                    console.log('WebView injected script running');
-                    console.log('Stream URL: ${camera.stream_url}');
-                    setTimeout(function() {
-                      var img = document.getElementById('img');
-                      if (img) {
-                        console.log('Image element found');
-                        console.log('Image src:', img.src);
-                        console.log('Image naturalWidth:', img.naturalWidth, 'naturalHeight:', img.naturalHeight);
-                        console.log('Image clientWidth:', img.clientWidth, 'clientHeight:', img.clientHeight);
-                        console.log('Image offsetWidth:', img.offsetWidth, 'offsetHeight:', img.offsetHeight);
-                        console.log('Image style:', img.style.cssText);
-                        if (window.ReactNativeWebView) {
-                          window.ReactNativeWebView.postMessage('debug:image-found');
-                        }
-                      } else {
-                        console.error('Image element not found!');
-                        if (window.ReactNativeWebView) {
-                          window.ReactNativeWebView.postMessage('debug:image-not-found');
-                        }
-                      }
-                    }, 1000);
-                  })();
-                  true;
-                `}
-              />
+                  }}
+                  onHttpError={(syntheticEvent) => {
+                    const { nativeEvent } = syntheticEvent;
+                    if (nativeEvent.statusCode >= 400) {
+                      handleError(nativeEvent);
+                    }
+                  }}
+                  javaScriptEnabled={true}
+                  domStorageEnabled={false}
+                  scalesPageToFit={true}
+                  scrollEnabled={false}
+                  allowsInlineMediaPlayback={true}
+                  mediaPlaybackRequiresUserAction={false}
+                  mixedContentMode="always"
+                  originWhitelist={['*']}
+                  startInLoadingState={false}
+                  showsHorizontalScrollIndicator={false}
+                  showsVerticalScrollIndicator={false}
+                  bounces={false}
+                  allowsBackForwardNavigationGestures={false}
+                  cacheEnabled={false}
+                  incognito={false}
+                  androidHardwareAccelerationDisabled={false}
+                />
+              </View>
             ) : (
               // Video stream - use expo-video VideoView component
               <VideoView
@@ -225,8 +217,8 @@ const CameraCard = ({ camera }) => {
               />
             )}
             
-            {loading && !error && !imageLoaded && (
-              <View style={styles.loadingOverlay}>
+            {loading && !error && (
+              <View style={styles.loadingOverlay} pointerEvents="none">
                 <ActivityIndicator size="large" color="#4F46E5" />
                 <Text style={styles.loadingText}>Loading stream...</Text>
                 <Text style={styles.loadingText} numberOfLines={1}>
@@ -274,11 +266,6 @@ const CameraCard = ({ camera }) => {
       <View style={styles.info}>
         <Text style={styles.cameraName}>{camera.name}</Text>
         <Text style={styles.location}>📍 {camera.location}</Text>
-        {camera.stream_url && (
-          <Text style={styles.streamUrl} numberOfLines={1}>
-            🔗 {camera.stream_url}
-          </Text>
-        )}
       </View>
     </View>
   );
@@ -314,6 +301,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     backgroundColor: '#000',
+    flex: 1,
   },
   placeholder: {
     alignItems: 'center',
@@ -415,11 +403,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     marginBottom: 2,
-  },
-  streamUrl: {
-    fontSize: 11,
-    color: '#9CA3AF',
-    fontFamily: 'monospace',
   },
 });
 
