@@ -14,6 +14,7 @@ class Camera(BaseModel):
     owner_id: int
     stream_url: Optional[str] = None
     status: str = "active"  # active, inactive
+    device: Optional[str] = None  # e.g., "Raspberry Pi 5"
 
 class Alert(BaseModel):
     id: int

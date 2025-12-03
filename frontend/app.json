@@ -14,11 +14,32 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.cctv.system"
+      "bundleIdentifier": "com.cctv.system",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSExceptionDomains": {
+            "localhost": {
+              "NSExceptionAllowsInsecureHTTPLoads": true
+            },
+            "192.168.0.0": {
+              "NSExceptionAllowsInsecureHTTPLoads": true,
+              "NSIncludesSubdomains": true
+            }
+          }
+        }
+      }
     },
     "android": {
-      "package": "com.cctv.system"
-    }
+      "package": "com.cctv.system",
+      "usesCleartextTraffic": true,
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
+    },
+    "plugins": [
+      "expo-video"
+    ]
   }
 }
-
