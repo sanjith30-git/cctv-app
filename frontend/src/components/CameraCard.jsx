@@ -1,13 +1,47 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ActivityIndicator, 
+  Modal, 
+  TouchableOpacity,
+  Dimensions,
+  PanResponder,
+  Animated
+} from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { WebView } from 'react-native-webview';
+import api from '../utils/api';
 
-const CameraCard = ({ camera }) => {
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+const CameraCard = ({ camera, onStatusUpdate, index = 0 }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [fullscreenVisible, setFullscreenVisible] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const webViewRef = useRef(null);
+  const fullscreenWebViewRef = useRef(null);
+  const errorCountRef = useRef(0);
+  const statusUpdateAttemptedRef = useRef(false);
+  
+  // Zoom and pan for fullscreen
+  const scale = useRef(new Animated.Value(1)).current;
+  const translateX = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
+  const lastScale = useRef(1);
+  const lastTranslate = useRef({ x: 0, y: 0 });
+  
+  // Card entrance animations
+  const cardOpacity = useRef(new Animated.Value(0)).current;
+  const cardTranslateY = useRef(new Animated.Value(20)).current;
+  const titleOpacity = useRef(new Animated.Value(0)).current;
+  const titleTranslateX = useRef(new Animated.Value(-10)).current;
+  const locationOpacity = useRef(new Animated.Value(0)).current;
+  const statusBadgeScale = useRef(new Animated.Value(0)).current;
+  const actionButtonsOpacity = useRef(new Animated.Value(0)).current;
 
   // Detect stream type - MJPEG streams typically use /video_feed endpoint
   const isMJPEG = camera.stream_url?.includes('/video_feed') || 
@@ -28,18 +62,244 @@ const CameraCard = ({ camera }) => {
     setLoading(true);
     setError(false);
     setImageLoaded(false);
-  }, [camera.stream_url, camera.status]);
+    errorCountRef.current = 0;
+    statusUpdateAttemptedRef.current = false;
+  }, [camera.stream_url, camera.status, refreshKey]);
+
+  // Entrance animations
+  useEffect(() => {
+    // Staggered entrance animation
+    Animated.parallel([
+      Animated.timing(cardOpacity, {
+        toValue: 1,
+        duration: 400,
+        delay: index * 100,
+        useNativeDriver: true,
+      }),
+      Animated.spring(cardTranslateY, {
+        toValue: 0,
+        tension: 50,
+        friction: 7,
+        delay: index * 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(titleOpacity, {
+        toValue: 1,
+        duration: 500,
+        delay: index * 100 + 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(titleTranslateX, {
+        toValue: 0,
+        duration: 500,
+        delay: index * 100 + 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(locationOpacity, {
+        toValue: 1,
+        duration: 500,
+        delay: index * 100 + 300,
+        useNativeDriver: true,
+      }),
+      Animated.spring(statusBadgeScale, {
+        toValue: 1,
+        tension: 50,
+        friction: 5,
+        delay: index * 100 + 400,
+        useNativeDriver: true,
+      }),
+      Animated.timing(actionButtonsOpacity, {
+        toValue: 1,
+        duration: 400,
+        delay: index * 100 + 500,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  // Reset zoom/pan when closing fullscreen
+  useEffect(() => {
+    if (!fullscreenVisible) {
+      scale.setValue(1);
+      translateX.setValue(0);
+      translateY.setValue(0);
+      lastScale.current = 1;
+      lastTranslate.current = { x: 0, y: 0 };
+    }
+  }, [fullscreenVisible]);
+
+  // Pan responder for zoom and pan gestures
+  const initialDistance = useRef(0);
+  const initialScale = useRef(1);
+  
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: (evt) => {
+        return evt.nativeEvent.touches.length >= 1;
+      },
+      onMoveShouldSetPanResponder: (evt) => {
+        return evt.nativeEvent.touches.length >= 1;
+      },
+      onPanResponderGrant: (evt) => {
+        if (evt.nativeEvent.touches.length === 2) {
+          const touch1 = evt.nativeEvent.touches[0];
+          const touch2 = evt.nativeEvent.touches[1];
+          initialDistance.current = Math.sqrt(
+            Math.pow(touch2.pageX - touch1.pageX, 2) +
+            Math.pow(touch2.pageY - touch1.pageY, 2)
+          );
+          initialScale.current = lastScale.current;
+        }
+        scale.setOffset(lastScale.current);
+        translateX.setOffset(lastTranslate.current.x);
+        translateY.setOffset(lastTranslate.current.y);
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        if (evt.nativeEvent.touches.length === 2) {
+          // Pinch to zoom
+          const touch1 = evt.nativeEvent.touches[0];
+          const touch2 = evt.nativeEvent.touches[1];
+          const distance = Math.sqrt(
+            Math.pow(touch2.pageX - touch1.pageX, 2) +
+            Math.pow(touch2.pageY - touch1.pageY, 2)
+          );
+          if (initialDistance.current > 0) {
+            const newScale = Math.max(1, Math.min(4, (distance / initialDistance.current) * initialScale.current));
+            scale.setValue(newScale);
+          }
+        } else if (evt.nativeEvent.touches.length === 1) {
+          // Pan (only if zoomed)
+          if (lastScale.current > 1) {
+            translateX.setValue(gestureState.dx);
+            translateY.setValue(gestureState.dy);
+          }
+        }
+      },
+      onPanResponderRelease: () => {
+        scale.flattenOffset();
+        translateX.flattenOffset();
+        translateY.flattenOffset();
+        lastScale.current = scale._value;
+        lastTranslate.current = { x: translateX._value, y: translateY._value };
+        initialDistance.current = 0;
+      },
+    })
+  ).current;
+
+  const lastTap = useRef(0);
+  
+  const handleDoubleTap = () => {
+    const now = Date.now();
+    const DOUBLE_TAP_DELAY = 300;
+    
+    if (lastTap.current && (now - lastTap.current) < DOUBLE_TAP_DELAY) {
+      // Double tap detected - reset zoom and pan
+      Animated.parallel([
+        Animated.spring(scale, {
+          toValue: 1,
+          useNativeDriver: true,
+        }),
+        Animated.spring(translateX, {
+          toValue: 0,
+          useNativeDriver: true,
+        }),
+        Animated.spring(translateY, {
+          toValue: 0,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        lastScale.current = 1;
+        lastTranslate.current = { x: 0, y: 0 };
+      });
+      lastTap.current = 0;
+    } else {
+      lastTap.current = now;
+    }
+  };
+
+  const handleRefresh = () => {
+    setRefreshKey(prev => prev + 1);
+    setLoading(true);
+    setError(false);
+    setImageLoaded(false);
+    errorCountRef.current = 0;
+    statusUpdateAttemptedRef.current = false;
+    
+    // Reload WebView
+    if (webViewRef.current) {
+      webViewRef.current.reload();
+    }
+    if (fullscreenWebViewRef.current) {
+      fullscreenWebViewRef.current.reload();
+    }
+  };
+
+  const handleFullscreen = () => {
+    setFullscreenVisible(true);
+  };
+
+  const handleCloseFullscreen = () => {
+    setFullscreenVisible(false);
+  };
 
   const handleLoad = () => {
     setLoading(false);
     setError(false);
     setImageLoaded(true);
+    // Reset error count on successful load
+    errorCountRef.current = 0;
+    statusUpdateAttemptedRef.current = false;
+    
+    // Animate status badge on load
+    Animated.spring(statusBadgeScale, {
+      toValue: 1.2,
+      tension: 50,
+      friction: 3,
+      useNativeDriver: true,
+    }).start(() => {
+      Animated.spring(statusBadgeScale, {
+        toValue: 1,
+        tension: 50,
+        friction: 5,
+        useNativeDriver: true,
+      }).start();
+    });
+    
+    // If camera was inactive and stream is now working, set it back to active
+    if (camera.status === 'inactive') {
+      updateCameraStatus('active');
+    }
+  };
+
+  const updateCameraStatus = async (newStatus) => {
+    if (statusUpdateAttemptedRef.current) return; // Prevent multiple attempts
+    
+    try {
+      statusUpdateAttemptedRef.current = true;
+      await api.patch(`/cameras/${camera.id}/status?status=${newStatus}`);
+      
+      // Notify parent component to refresh camera list
+      if (onStatusUpdate) {
+        onStatusUpdate(camera.id, newStatus);
+      }
+    } catch (error) {
+      console.error('Failed to update camera status:', error);
+      statusUpdateAttemptedRef.current = false; // Allow retry on error
+    }
   };
 
   const handleError = (err) => {
     console.error('CameraCard: Stream error:', err || 'Unknown error');
     setLoading(false);
     setError(true);
+    
+    // Increment error count
+    errorCountRef.current += 1;
+    
+    // After 5 consecutive errors, mark camera as inactive
+    if (camera.status === 'active' && errorCountRef.current >= 5 && !statusUpdateAttemptedRef.current) {
+      updateCameraStatus('inactive');
+    }
   };
 
   // HTML for MJPEG stream - memoized to prevent re-renders
@@ -156,7 +416,15 @@ html, body { width: 100%; height: 100%; background: #000; overflow: hidden; posi
   }, [camera.stream_url]);
 
   return (
-    <View style={styles.card}>
+    <Animated.View 
+      style={[
+        styles.card,
+        {
+          opacity: cardOpacity,
+          transform: [{ translateY: cardTranslateY }],
+        },
+      ]}
+    >
       <View style={styles.videoContainer}>
         {camera.stream_url && camera.status === 'active' ? (
           <>
@@ -219,7 +487,7 @@ html, body { width: 100%; height: 100%; background: #000; overflow: hidden; posi
             
             {loading && !error && (
               <View style={styles.loadingOverlay} pointerEvents="none">
-                <ActivityIndicator size="large" color="#4F46E5" />
+                <ActivityIndicator size="large" color="#06B6D4" />
                 <Text style={styles.loadingText}>Loading stream...</Text>
                 <Text style={styles.loadingText} numberOfLines={1}>
                   {camera.stream_url}
@@ -240,6 +508,33 @@ html, body { width: 100%; height: 100%; background: #000; overflow: hidden; posi
                 </Text>
               </View>
             )}
+            
+            {/* Action buttons */}
+            {camera.stream_url && camera.status === 'active' && (
+              <Animated.View 
+                style={[
+                  styles.actionButtons,
+                  {
+                    opacity: actionButtonsOpacity,
+                  },
+                ]}
+              >
+                <TouchableOpacity 
+                  style={styles.actionButton}
+                  onPress={handleRefresh}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.actionButtonText}>🔄</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.actionButton}
+                  onPress={handleFullscreen}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.actionButtonText}>⛶</Text>
+                </TouchableOpacity>
+              </Animated.View>
+            )}
           </>
         ) : (
           <View style={styles.placeholder}>
@@ -250,12 +545,17 @@ html, body { width: 100%; height: 100%; background: #000; overflow: hidden; posi
           </View>
         )}
         
-        <View style={[
-          styles.statusBadge,
-          camera.status === 'active' ? styles.statusActive : styles.statusInactive
-        ]}>
+        <Animated.View 
+          style={[
+            styles.statusBadge,
+            camera.status === 'active' ? styles.statusActive : styles.statusInactive,
+            {
+              transform: [{ scale: statusBadgeScale }],
+            },
+          ]}
+        >
           <Text style={styles.statusText}>{camera.status}</Text>
-        </View>
+        </Animated.View>
         
         {camera.device && (
           <View style={styles.deviceBadge}>
@@ -264,10 +564,157 @@ html, body { width: 100%; height: 100%; background: #000; overflow: hidden; posi
         )}
       </View>
       <View style={styles.info}>
-        <Text style={styles.cameraName}>{camera.name}</Text>
-        <Text style={styles.location}>📍 {camera.location}</Text>
+        <Animated.View
+          style={{
+            opacity: titleOpacity,
+            transform: [{ translateX: titleTranslateX }],
+          }}
+        >
+          <Text style={styles.cameraName}>{camera.name}</Text>
+        </Animated.View>
+        <Animated.View
+          style={{
+            opacity: locationOpacity,
+          }}
+        >
+          <Text style={styles.location}>📍 {camera.location}</Text>
+        </Animated.View>
       </View>
-    </View>
+      
+      {/* Fullscreen Modal */}
+      <Modal
+        visible={fullscreenVisible}
+        transparent={false}
+        animationType="fade"
+        onRequestClose={handleCloseFullscreen}
+      >
+        <View style={styles.fullscreenContainer}>
+          <View style={styles.fullscreenHeader}>
+            <Text style={styles.fullscreenTitle}>{camera.name}</Text>
+            <View style={styles.fullscreenButtons}>
+              <TouchableOpacity 
+                style={styles.fullscreenButton}
+                onPress={handleRefresh}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.fullscreenButtonText}>🔄 Refresh</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.fullscreenButton}
+                onPress={handleCloseFullscreen}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.fullscreenButtonText}>✕ Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          
+          <Animated.View
+            style={[
+              styles.fullscreenContent,
+              {
+                transform: [
+                  { scale: scale },
+                  { translateX: translateX },
+                  { translateY: translateY },
+                ],
+              },
+            ]}
+            {...panResponder.panHandlers}
+          >
+            <View
+              style={StyleSheet.absoluteFill}
+              onStartShouldSetResponder={() => false}
+            >
+            {isMJPEG ? (
+              <WebView
+                ref={fullscreenWebViewRef}
+                key={`fullscreen-${refreshKey}`}
+                source={{ html: mjpegHTML }}
+                style={styles.fullscreenWebView}
+                onMessage={(event) => {
+                  const message = event.nativeEvent.data;
+                  if (message === 'loaded') {
+                    handleLoad();
+                  } else if (message.startsWith('error')) {
+                    handleError();
+                  }
+                }}
+                onError={(syntheticEvent) => {
+                  const { nativeEvent } = syntheticEvent;
+                  console.error('WebView error:', nativeEvent);
+                  handleError(nativeEvent);
+                }}
+                onHttpError={(syntheticEvent) => {
+                  const { nativeEvent } = syntheticEvent;
+                  if (nativeEvent.statusCode >= 400) {
+                    handleError(nativeEvent);
+                  }
+                }}
+                javaScriptEnabled={true}
+                domStorageEnabled={false}
+                scalesPageToFit={true}
+                scrollEnabled={false}
+                allowsInlineMediaPlayback={true}
+                mediaPlaybackRequiresUserAction={false}
+                mixedContentMode="always"
+                originWhitelist={['*']}
+                startInLoadingState={false}
+                showsHorizontalScrollIndicator={false}
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+                allowsBackForwardNavigationGestures={false}
+                cacheEnabled={false}
+                incognito={false}
+                androidHardwareAccelerationDisabled={false}
+              />
+            ) : (
+              <VideoView
+                player={player}
+                style={styles.fullscreenVideo}
+                contentFit="contain"
+                nativeControls={false}
+                allowsFullscreen={false}
+                onLoadStart={handleLoad}
+                onError={handleError}
+              />
+            )}
+            </View>
+          </Animated.View>
+          
+          {loading && !error && (
+            <View style={styles.fullscreenLoadingOverlay} pointerEvents="none">
+              <ActivityIndicator size="large" color="#06B6D4" />
+              <Text style={styles.fullscreenLoadingText}>Loading stream...</Text>
+            </View>
+          )}
+          
+          {error && (
+            <View style={styles.fullscreenErrorOverlay}>
+              <Text style={styles.fullscreenErrorIcon}>⚠️</Text>
+              <Text style={styles.fullscreenErrorText}>Stream unavailable</Text>
+              <TouchableOpacity 
+                style={styles.retryButton}
+                onPress={handleRefresh}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.retryButtonText}>🔄 Retry</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          
+          <TouchableOpacity 
+            style={styles.fullscreenHint}
+            onPress={handleDoubleTap}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.fullscreenHintText}>
+              Pinch to zoom • Drag to pan • Tap here to reset zoom
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+    </Animated.View>
   );
 };
 
@@ -364,7 +811,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   statusActive: {
-    backgroundColor: '#10B981',
+    backgroundColor: '#06B6D4',
   },
   statusInactive: {
     backgroundColor: '#EF4444',
@@ -403,6 +850,141 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     marginBottom: 2,
+  },
+  actionButtons: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    flexDirection: 'row',
+    gap: 8,
+    zIndex: 20,
+  },
+  actionButton: {
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  actionButtonText: {
+    fontSize: 18,
+    color: '#fff',
+  },
+  fullscreenContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  fullscreenHeader: {
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    padding: 16,
+    paddingTop: 50,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+  },
+  fullscreenTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+    flex: 1,
+  },
+  fullscreenButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  fullscreenButton: {
+    backgroundColor: '#06B6D4',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  fullscreenButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  fullscreenContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000',
+  },
+  fullscreenWebView: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT - 100,
+  },
+  fullscreenVideo: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT - 100,
+  },
+  fullscreenLoadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullscreenLoadingText: {
+    color: '#fff',
+    marginTop: 16,
+    fontSize: 16,
+  },
+  fullscreenErrorOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  fullscreenErrorIcon: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  fullscreenErrorText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: '#06B6D4',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  fullscreenHint: {
+    position: 'absolute',
+    bottom: 20,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  fullscreenHintText: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 12,
+    textAlign: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
   },
 });
 

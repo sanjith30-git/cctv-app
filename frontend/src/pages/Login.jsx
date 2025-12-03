@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 
@@ -19,6 +20,16 @@ const Login = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   
   const { login, user } = useAuth();
+  
+  // Login page animations
+  const containerOpacity = useRef(new Animated.Value(0)).current;
+  const containerScale = useRef(new Animated.Value(0.9)).current;
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const headerTranslateY = useRef(new Animated.Value(-30)).current;
+  const formOpacity = useRef(new Animated.Value(0)).current;
+  const formTranslateY = useRef(new Animated.Value(20)).current;
+  const buttonScale = useRef(new Animated.Value(0.95)).current;
+  const credentialsOpacity = useRef(new Animated.Value(0)).current;
 
   // Clear form when user logs out (user becomes null)
   React.useEffect(() => {
@@ -29,6 +40,73 @@ const Login = ({ navigation }) => {
       setRole('Owner');
     }
   }, [user]);
+
+  // Entrance animations
+  useEffect(() => {
+    Animated.parallel([
+      // Container fade and scale
+      Animated.timing(containerOpacity, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(containerScale, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+      // Header animation
+      Animated.timing(headerOpacity, {
+        toValue: 1,
+        duration: 700,
+        delay: 200,
+        useNativeDriver: true,
+      }),
+      Animated.spring(headerTranslateY, {
+        toValue: 0,
+        tension: 50,
+        friction: 8,
+        delay: 200,
+        useNativeDriver: true,
+      }),
+      // Form animation
+      Animated.timing(formOpacity, {
+        toValue: 1,
+        duration: 700,
+        delay: 400,
+        useNativeDriver: true,
+      }),
+      Animated.timing(formTranslateY, {
+        toValue: 0,
+        duration: 700,
+        delay: 400,
+        useNativeDriver: true,
+      }),
+      // Credentials box animation
+      Animated.timing(credentialsOpacity, {
+        toValue: 1,
+        duration: 600,
+        delay: 800,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  // Button press animation
+  const handleButtonPress = () => {
+    Animated.sequence([
+      Animated.spring(buttonScale, {
+        toValue: 0.9,
+        useNativeDriver: true,
+      }),
+      Animated.spring(buttonScale, {
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    handleSubmit();
+  };
 
   const handleSubmit = async () => {
     if (!username || !password) {
@@ -57,13 +135,37 @@ const Login = ({ navigation }) => {
       contentContainerStyle={styles.container}
       keyboardShouldPersistTaps="handled"
     >
-      <View style={styles.content}>
-        <View style={styles.header}>
+      <Animated.View 
+        style={[
+          styles.content,
+          {
+            opacity: containerOpacity,
+            transform: [{ scale: containerScale }],
+          },
+        ]}
+      >
+        <Animated.View 
+          style={[
+            styles.header,
+            {
+              opacity: headerOpacity,
+              transform: [{ translateY: headerTranslateY }],
+            },
+          ]}
+        >
           <Text style={styles.title}>CCTV System</Text>
           <Text style={styles.subtitle}>Role-Based Access Control</Text>
-        </View>
+        </Animated.View>
 
-        <View style={styles.form}>
+        <Animated.View 
+          style={[
+            styles.form,
+            {
+              opacity: formOpacity,
+              transform: [{ translateY: formTranslateY }],
+            },
+          ]}
+        >
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Username</Text>
             <TextInput
@@ -129,25 +231,38 @@ const Login = ({ navigation }) => {
             </View>
           ) : null}
 
-          <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={handleSubmit}
-            disabled={loading || !username || !password}
+          <Animated.View
+            style={{
+              transform: [{ scale: buttonScale }],
+            }}
           >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Login</Text>
-            )}
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity
+              style={[styles.button, loading && styles.buttonDisabled]}
+              onPress={handleButtonPress}
+              disabled={loading || !username || !password}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Login</Text>
+              )}
+            </TouchableOpacity>
+          </Animated.View>
+        </Animated.View>
 
-        <View style={styles.credentialsBox}>
+        <Animated.View 
+          style={[
+            styles.credentialsBox,
+            {
+              opacity: credentialsOpacity,
+            },
+          ]}
+        >
           <Text style={styles.credentialsTitle}>Test Credentials:</Text>
           <Text style={styles.credentialsText}>Owner: owner1 / password123</Text>
           <Text style={styles.credentialsText}>Control Room: admin / password123</Text>
-        </View>
-      </View>
+        </Animated.View>
+      </Animated.View>
     </ScrollView>
   );
 };
@@ -155,7 +270,7 @@ const Login = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    backgroundColor: '#4F46E5',
+    backgroundColor: '#06B6D4',
     justifyContent: 'center',
     padding: 20,
   },
@@ -217,8 +332,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
   },
   roleButtonActive: {
-    backgroundColor: '#4F46E5',
-    borderColor: '#4F46E5',
+    backgroundColor: '#06B6D4',
+    borderColor: '#06B6D4',
   },
   roleButtonText: {
     fontSize: 14,
@@ -241,7 +356,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   button: {
-    backgroundColor: '#4F46E5',
+    backgroundColor: '#06B6D4',
     borderRadius: 8,
     padding: 16,
     alignItems: 'center',
@@ -258,7 +373,7 @@ const styles = StyleSheet.create({
   credentialsBox: {
     marginTop: 24,
     padding: 16,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#E0F2FE',
     borderRadius: 8,
   },
   credentialsTitle: {

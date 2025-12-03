@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   TouchableOpacity,
+  Animated,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
@@ -21,9 +22,42 @@ const ControlDashboard = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('cameras');
   const [drawerVisible, setDrawerVisible] = useState(false);
+  
+  // Header animations
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const headerTranslateY = useRef(new Animated.Value(-20)).current;
+  const titleOpacity = useRef(new Animated.Value(0)).current;
+  const subtitleOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     fetchData();
+    
+    // Animate header on mount
+    Animated.parallel([
+      Animated.timing(headerOpacity, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(headerTranslateY, {
+        toValue: 0,
+        tension: 50,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+      Animated.timing(titleOpacity, {
+        toValue: 1,
+        duration: 700,
+        delay: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(subtitleOpacity, {
+        toValue: 1,
+        duration: 700,
+        delay: 400,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, []);
 
   const fetchData = async () => {
@@ -50,7 +84,7 @@ const ControlDashboard = ({ navigation }) => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4F46E5" />
+        <ActivityIndicator size="large" color="#06B6D4" />
         <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
@@ -64,7 +98,15 @@ const ControlDashboard = ({ navigation }) => {
         role="control_room"
         navigation={navigation}
       />
-      <View style={styles.header}>
+      <Animated.View 
+        style={[
+          styles.header,
+          {
+            opacity: headerOpacity,
+            transform: [{ translateY: headerTranslateY }],
+          },
+        ]}
+      >
         <TouchableOpacity
           style={styles.menuButton}
           onPress={() => setDrawerVisible(true)}
@@ -72,10 +114,24 @@ const ControlDashboard = ({ navigation }) => {
           <Text style={styles.menuIcon}>☰</Text>
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Control Room Dashboard</Text>
-          <Text style={styles.headerSubtitle}>Monitor all CCTV cameras and alerts</Text>
+          <Animated.Text 
+            style={[
+              styles.headerTitle,
+              { opacity: titleOpacity },
+            ]}
+          >
+            Control Room Dashboard
+          </Animated.Text>
+          <Animated.Text 
+            style={[
+              styles.headerSubtitle,
+              { opacity: subtitleOpacity },
+            ]}
+          >
+            Monitor all CCTV cameras and alerts
+          </Animated.Text>
         </View>
-      </View>
+      </Animated.View>
 
       <View style={styles.tabs}>
         <TouchableOpacity
@@ -117,8 +173,16 @@ const ControlDashboard = ({ navigation }) => {
               </View>
             ) : (
               <View style={styles.cameraGrid}>
-                {cameras.map((camera) => (
-                  <CameraCard key={camera.id} camera={camera} />
+                {cameras.map((camera, index) => (
+                  <CameraCard 
+                    key={camera.id} 
+                    camera={camera}
+                    index={index}
+                    onStatusUpdate={(cameraId, newStatus) => {
+                      // Refresh camera list when status changes
+                      fetchData();
+                    }}
+                  />
                 ))}
               </View>
             )}
@@ -176,13 +240,13 @@ const ControlDashboard = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#F0F9FF',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#F0F9FF',
   },
   loadingText: {
     marginTop: 16,
@@ -238,7 +302,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   tabActive: {
-    borderBottomColor: '#4F46E5',
+    borderBottomColor: '#06B6D4',
   },
   tabText: {
     fontSize: 16,
@@ -246,7 +310,7 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
   tabTextActive: {
-    color: '#4F46E5',
+    color: '#06B6D4',
   },
   content: {
     flex: 1,
