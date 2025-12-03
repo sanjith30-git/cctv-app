@@ -73,7 +73,7 @@ const Login = ({ navigation }) => {
             <TextInput
               style={styles.input}
               value={username}
-              onChangeText={setUsername}
+              onChangeText={(text) => setUsername(text.trim())}
               placeholder="Enter your username"
               autoCapitalize="none"
               autoCorrect={false}
@@ -85,7 +85,7 @@ const Login = ({ navigation }) => {
             <TextInput
               style={styles.input}
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(text) => setPassword(text)}
               placeholder="Enter your password"
               secureTextEntry
               autoCapitalize="none"

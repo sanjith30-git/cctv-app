@@ -40,19 +40,21 @@ def save_cameras(cameras: List[dict]):
         json.dump(cameras, f, indent=2)
 
 def get_user_by_username(username: str) -> Optional[dict]:
-    """Get user by username"""
+    """Get user by username - returns a COPY to prevent accidental modifications"""
     users = load_users()
     for user in users:
         if user["username"] == username:
-            return user
+            # Return a copy to prevent accidental modification of the original
+            return user.copy()
     return None
 
 def get_user_by_id(user_id: int) -> Optional[dict]:
-    """Get user by ID"""
+    """Get user by ID - returns a COPY to prevent accidental modifications"""
     users = load_users()
     for user in users:
         if user["id"] == user_id:
-            return user
+            # Return a copy to prevent accidental modification of the original
+            return user.copy()
     return None
 
 def get_cameras_by_owner(owner_id: int) -> List[dict]:

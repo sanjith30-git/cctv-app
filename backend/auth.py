@@ -8,7 +8,11 @@ from datetime import timedelta
 security = HTTPBearer()
 
 def authenticate_user(username: str, password: str, role: str) -> dict:
-    """Authenticate user and return user data if valid"""
+    """
+    Authenticate user and return user data if valid.
+    This function is READ-ONLY and never modifies the database.
+    """
+    # Get user from database (returns a copy to prevent modifications)
     user = get_user_by_username(username)
     if not user:
         raise HTTPException(
@@ -16,7 +20,9 @@ def authenticate_user(username: str, password: str, role: str) -> dict:
             detail="Invalid username or password"
         )
     
-    if not verify_password(password, user["password"]):
+    # Verify password - READ ONLY operation
+    stored_password_hash = user["password"]
+    if not verify_password(password, stored_password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password"
@@ -29,7 +35,15 @@ def authenticate_user(username: str, password: str, role: str) -> dict:
             detail=f"User does not have {role} role"
         )
     
-    return user
+    # Return user data WITHOUT password field for security
+    # This ensures password hash is never exposed or accidentally modified
+    user_data = {
+        "id": user["id"],
+        "username": user["username"],
+        "role": user["role"]
+    }
+    
+    return user_data
 
 def create_token_for_user(user: dict) -> Token:
     """Create JWT token for authenticated user"""

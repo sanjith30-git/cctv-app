@@ -27,13 +27,25 @@ def root():
 
 @app.post("/api/login", response_model=Token)
 def login(login_data: LoginRequest):
-    """Login endpoint"""
+    """
+    Login endpoint - READ ONLY operation.
+    This endpoint NEVER modifies the database or user passwords.
+    It only:
+    1. Verifies credentials (read-only)
+    2. Creates and returns a JWT token
+    """
+    # Authenticate user - this is a READ-ONLY operation
+    # It returns user data WITHOUT the password field
     user = authenticate_user(
         login_data.username,
         login_data.password,
         login_data.role
     )
+    
+    # Create token - this does NOT touch the database
     token = create_token_for_user(user)
+    
+    # Return token - no database writes occur
     return token
 
 @app.get("/api/me")

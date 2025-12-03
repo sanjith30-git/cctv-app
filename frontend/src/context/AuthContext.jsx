@@ -1,7 +1,6 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
-import api, { API_BASE_URL } from '../utils/api';
+import api from '../utils/api';
 
 const AuthContext = createContext(null);
 
@@ -52,17 +51,17 @@ export const AuthProvider = ({ children }) => {
       await AsyncStorage.removeItem('token');
       await AsyncStorage.removeItem('user');
       
-      console.log('Attempting login with:', { username, role: role === 'Owner' ? 'owner' : 'control_room' });
+      // Trim username to remove any whitespace
+      const trimmedUsername = username.trim();
+      const trimmedPassword = password.trim();
       
-      // Create a clean axios request for login (bypass interceptors that add tokens)
-      const response = await axios.post(`${API_BASE_URL}/login`, {
-        username,
-        password,
+      console.log('Attempting login with:', { username: trimmedUsername, role: role === 'Owner' ? 'owner' : 'control_room' });
+      
+      // Use normal api instance - interceptor will handle not adding token to login
+      const response = await api.post('/login', {
+        username: trimmedUsername,
+        password: trimmedPassword,
         role: role === 'Owner' ? 'owner' : 'control_room'
-      }, {
-        headers: {
-          'Content-Type': 'application/json',
-        }
       });
       
       console.log('Login response received:', response.status);
