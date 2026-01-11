@@ -14,6 +14,7 @@ class Camera(BaseModel):
     owner_id: int
     stream_url: Optional[str] = None
     status: str = "active"  # active, inactive
+    device: Optional[str] = None  # e.g., "Raspberry Pi 5"
 
 class Alert(BaseModel):
     id: int
@@ -32,4 +33,15 @@ class LoginRequest(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+class UpdateUsernameRequest(BaseModel):
+    new_username: str
+    password: str  # Current password for verification
+
+class UpdatePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+class UpdateCameraNameRequest(BaseModel):
+    name: str
 

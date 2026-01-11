@@ -45,6 +45,10 @@ const CustomDrawer = ({ visible, onClose, role, navigation }) => {
     { label: 'Home', icon: '🏠', onPress: () => onClose() },
     { label: 'Cameras', icon: '📹', onPress: () => onClose() },
     ...(role === 'control_room' ? [{ label: 'Alerts', icon: '🚨', onPress: () => onClose() }] : []),
+    { label: 'Settings', icon: '⚙️', onPress: () => {
+      navigation?.navigate('Settings');
+      onClose();
+    }},
   ];
 
   return (

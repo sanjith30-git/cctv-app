@@ -5,7 +5,7 @@ from database import get_user_by_username
 from models import LoginRequest, Token
 from datetime import timedelta
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 def authenticate_user(username: str, password: str, role: str) -> dict:
     """
@@ -58,15 +58,31 @@ def create_token_for_user(user: dict) -> Token:
     )
     return Token(access_token=access_token, token_type="bearer")
 
+security = HTTPBearer()
+
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
     """Get current authenticated user from JWT token"""
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
     token = credentials.credentials
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authentication token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
     payload = decode_token(token)
     
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
+            detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
@@ -77,7 +93,7 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     if user_id is None or username is None or role is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
+            detail="Invalid token payload",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
